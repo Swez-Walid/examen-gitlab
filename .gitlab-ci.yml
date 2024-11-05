@@ -1,0 +1,259 @@
+variables:
+  KUBE_NAMESPACE_DEV: dev
+  KUBE_NAMESPACE_STAGING: staging
+  KUBE_NAMESPACE_PROD: prod
+  KUBE_NAMESPACE_QA: qa
+  IMAGE_REGISTRY: docker.io
+  PROJECT_NAME: swezwalid
+  IMAGE_TAG: $CI_COMMIT_SHORT_SHA
+
+stages:
+  - build
+  - push
+  - deploy_dev
+  - deploy_staging
+  - deploy_qa
+  - deploy_prod
+
+build_gateway:
+  stage: build
+  image: docker:20.10.16
+  services:
+    - docker:20.10.16-dind
+  script:
+    - docker build -t "$IMAGE_REGISTRY/$PROJECT_NAME/gateway:$IMAGE_TAG" ./gateway
+
+build_users:
+  stage: build
+  image: docker:20.10.16
+  services:
+    - docker:20.10.16-dind
+  script:
+    - docker build -t "$IMAGE_REGISTRY/$PROJECT_NAME/users:$IMAGE_TAG" ./users
+
+build_orders:
+  stage: build
+  image: docker:20.10.16
+  services:
+    - docker:20.10.16-dind
+  script:
+    - docker build -t "$IMAGE_REGISTRY/$PROJECT_NAME/orders:$IMAGE_TAG" ./orders
+
+
+# 2. Stage de Push pour chaque service
+push_gateway:
+  stage: push
+  script:
+    - docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD" "$IMAGE_REGISTRY"
+    - docker push "$IMAGE_REGISTRY/$DOCKER_USERNAME/gateway:$IMAGE_TAG"
+  
+
+push_users:
+  stage: push
+  script:
+    - docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD" "$IMAGE_REGISTRY"
+    - docker push "$IMAGE_REGISTRY/$PROJECT_NAME/users:$IMAGE_TAG"
+
+push_orders:
+  stage: push
+  script:
+    - docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD" "$IMAGE_REGISTRY"
+    - docker push "$IMAGE_REGISTRY/$PROJECT_NAME/orders:$IMAGE_TAG"
+
+stop_gateway_dev:
+  stage: deploy_dev
+  variables:
+    NAMESPACE: dev
+  when: manual
+  # Don't stop the "review" for master branch or tags,
+  # it is only for branches (so PRs (most of the time))
+  environment:
+    name: dev
+    action: stop
+  script:
+    - sudo helm uninstall login -n $KUBE_NAMESPACE_DEV
+
+# 3. Stage de Déploiement Dev pour chaque service
+deploy_gateway_dev:
+  stage: deploy_dev
+  environment:
+    name: dev
+    url: https://dev.cours-datascientest-1.cloudns.ch/docs
+    on_stop: stop_gateway_dev
+  script:
+    - rm -Rf .kube
+    - mkdir .kube
+    - ls
+    - export KUBECONFIG="$KUBE_CONFIG"
+    - chmod 600 "$KUBE_CONFIG"
+    - kubectl get nodes  # Tester l'accès
+    - cat $KUBE_CONFIG > .kube/config
+    - cp login/values.yaml values.yml
+    - sed -i 's/jenkins/dev/g' values.yml
+    - cat values.yml
+    - helm upgrade --install gateway ./login --values=values.yml --namespace $KUBE_NAMESPACE_DEV --set image.repository="$IMAGE_REGISTRY/$PROJECT_NAME/gateway",image.tag="$IMAGE_TAG"
+ 
+deploy_users_dev: 
+  stage: deploy_dev
+  environment:
+    name: dev
+  script:
+   - rm -Rf .kube
+   - mkdir .kube
+   - ls
+   - export KUBECONFIG="$KUBE_CONFIG"
+   - cat $KUBE_CONFIG > .kube/config
+   - cp userapi/values.yaml values.yml
+   - cat values.yml
+   - helm upgrade --install users ./userapi --namespace $KUBE_NAMESPACE_DEV --set image.repository="$IMAGE_REGISTRY/$PROJECT_NAME/users",image.tag="$IMAGE_TAG"
+
+deploy_orders_dev:
+  stage: deploy_dev
+  environment:
+    name: dev
+  script:
+    - rm -Rf .kube
+    - mkdir .kube
+    - ls
+    - export KUBECONFIG="$KUBE_CONFIG"
+    - cat $KUBE_CONFIG > .kube/config
+    - cp ordersapi/values.yaml values.yml
+    - cat values.yml
+    - helm upgrade --install orders ./ordersapi --namespace $KUBE_NAMESPACE_DEV --set image.repository="$IMAGE_REGISTRY/$PROJECT_NAME/orders",image.tag="$IMAGE_TAG"
+
+# 4. Stage de Déploiement Staging
+deploy_gateway_staging:
+  stage: deploy_staging
+  environment:
+    name: staging
+    url: https://staging.cours-datascientest-1.cloudns.ch/docs
+  script:
+    - rm -Rf .kube
+    - mkdir .kube
+    - ls
+    - export KUBECONFIG="$KUBE_CONFIG"
+    - cat $KUBE_CONFIG > .kube/config
+    - cp login/values.yaml values.yml
+    - sed -i 's/jenkins/staging/g' values.yml
+    - cat values.yml
+    - helm upgrade --install gateway ./login --values=values.yml --namespace $KUBE_NAMESPACE_STAGING --set image.repository="$IMAGE_REGISTRY/$PROJECT_NAME/gateway",image.tag="$IMAGE_TAG"
+ 
+deploy_users_staging:
+  stage: deploy_staging
+  environment:
+    name: staging
+  script:
+   - rm -Rf .kube
+   - mkdir .kube
+   - ls
+   - export KUBECONFIG="$KUBE_CONFIG"
+   - cat $KUBE_CONFIG > .kube/config
+   - cp userapi/values.yaml values.yml
+   - cat values.yml
+   - helm upgrade --install users ./userapi --namespace $KUBE_NAMESPACE_STAGING --set image.repository="$IMAGE_REGISTRY/$PROJECT_NAME/users",image.tag="$IMAGE_TAG"
+
+deploy_orders_staging:
+  stage: deploy_staging
+  environment:
+    name: staging
+  script:
+   - rm -Rf .kube
+   - mkdir .kube
+   - ls
+   - export KUBECONFIG="$KUBE_CONFIG"
+   - cat $KUBE_CONFIG > .kube/config
+   - cp ordersapi/values.yaml values.yml
+   - cat values.yml
+   - helm upgrade --install orders ./ordersapi --namespace $KUBE_NAMESPACE_STAGING --set image.repository="$IMAGE_REGISTRY/$PROJECT_NAME/orders",image.tag="$IMAGE_TAG"
+
+deploy_gateway_qa:
+  stage: deploy_qa
+  environment:
+    name: qa
+    url: https://qa.cours-datascientest-1.cloudns.ch/docs
+  script:
+    - rm -Rf .kube
+    - mkdir .kube
+    - ls
+    - export KUBECONFIG="$KUBE_CONFIG"
+    - cat $KUBE_CONFIG > .kube/config
+    - cp login/values.yaml values.yml
+    - sed -i 's/jenkins/qa/g' values.yml
+    - cat values.yml
+    - helm upgrade --install gateway ./login --values=values.yml --namespace $KUBE_NAMESPACE_QA --set image.repository="$IMAGE_REGISTRY/$PROJECT_NAME/gateway",image.tag="$IMAGE_TAG"
+ 
+deploy_users_qa: 
+  stage: deploy_qa
+  environment:
+    name: qa
+  script:
+   - rm -Rf .kube
+   - mkdir .kube
+   - ls
+   - export KUBECONFIG="$KUBE_CONFIG"
+   - cat $KUBE_CONFIG > .kube/config
+   - cp userapi/values.yaml values.yml
+   - cat values.yml
+   - helm upgrade --install users ./userapi --namespace $KUBE_NAMESPACE_QA --set image.repository="$IMAGE_REGISTRY/$PROJECT_NAME/users",image.tag="$IMAGE_TAG"
+
+deploy_orders_qa:
+  stage: deploy_qa
+  environment:
+    name: qa
+  script:
+    - rm -Rf .kube
+    - mkdir .kube
+    - ls
+    - export KUBECONFIG="$KUBE_CONFIG"
+    - cat $KUBE_CONFIG > .kube/config
+    - cp ordersapi/values.yaml values.yml
+    - cat values.yml
+    - helm upgrade --install orders ./ordersapi --namespace $KUBE_NAMESPACE_QA --set image.repository="$IMAGE_REGISTRY/$PROJECT_NAME/orders",image.tag="$IMAGE_TAG"
+
+# 5. Stage de Déploiement Production (manuel)
+deploy_gateway_prod:
+  stage: deploy_prod
+  environment:
+    name: prod
+    url: https://prod.cours-datascientest-1.cloudns.ch/docs
+  when: manual
+  script:
+  - rm -Rf .kube
+  - mkdir .kube
+  - ls
+  - export KUBECONFIG="$KUBE_CONFIG"
+  - cat $KUBE_CONFIG > .kube/config
+  - cp login/values.yaml values.yml
+  - sed -i 's/jenkins/prod/g' values.yml
+  - cat values.yml
+  - helm upgrade --install gateway ./login --values=values.yml --namespace $KUBE_NAMESPACE_PROD --set image.repository="$IMAGE_REGISTRY/$PROJECT_NAME/gateway",image.tag="$IMAGE_TAG"
+
+deploy_users_prod:
+  stage: deploy_prod
+  environment:
+    name: prod
+  when: manual
+  script:
+  - rm -Rf .kube
+  - mkdir .kube
+  - ls
+  - export KUBECONFIG="$KUBE_CONFIG"
+  - cat $KUBE_CONFIG > .kube/config
+  - cp userapi/values.yaml values.yml
+  - cat values.yml
+  - helm upgrade --install users ./userapi --namespace $KUBE_NAMESPACE_PROD --set image.repository="$IMAGE_REGISTRY/$PROJECT_NAME/users",image.tag="$IMAGE_TAG"
+
+deploy_orders_prod:
+  stage: deploy_prod
+  environment:
+    name: prod
+  when: manual
+  script:
+  - rm -Rf .kube
+  - mkdir .kube
+  - ls
+  - export KUBECONFIG="$KUBE_CONFIG"
+  - cat $KUBE_CONFIG > .kube/config
+  - cp ordersapi/values.yaml values.yml
+  - cat values.yml
+  - helm upgrade --install orders ./ordersapi --namespace $KUBE_NAMESPACE_PROD --set image.repository="$IMAGE_REGISTRY/$PROJECT_NAME/orders",image.tag="$IMAGE_TAG"

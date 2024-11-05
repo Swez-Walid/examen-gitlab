@@ -1,0 +1,14 @@
+replicaCount: 1
+
+image:
+  repository: swezwalid/users
+  tag: ""
+  
+
+service:
+  type: ClusterIP
+  port: 8000
+
+env:
+  - name: env_file
+    value: "./users/.env"

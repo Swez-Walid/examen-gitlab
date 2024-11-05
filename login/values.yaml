@@ -1,0 +1,28 @@
+replicaCount: 1
+
+image:
+  repository: swezwalid/gateway
+  tag: "latest"  # Assurez-vous d'ajouter un tag approprié
+
+service:
+  type: ClusterIP
+  port: 8000  # Port exposé par le service
+
+ingress:
+  enabled: true
+  annotations:
+    kubernetes.io/ingress.class: "traefik"  # Spécifie Traefik comme contrôleur d'Ingress
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"  # Utilise cert-manager pour gérer TLS
+  hosts:
+    - host: jenkins.cours-datascientest-1.cloudns.ch
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - jenkins.cours-datascientest-1.cloudns.ch
+      secretName: login-cert  # Certificat TLS généré par cert-manager
+
+env:
+  - name: env_file
+    value: "./gateway/.env"  # Chemin vers le fichier d'environnement

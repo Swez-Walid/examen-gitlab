@@ -1,0 +1,19 @@
+replicaCount: 1
+
+image:
+  repository: swezwalid/orders
+  tag: ""
+  
+
+service:
+  type: ClusterIP
+  port: 8000
+
+hpa:
+  minReplicas: 1
+  maxReplicas: 6
+  cpu: 70
+
+env:
+  - name: env_file
+    value: "./orders/.env"

@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}  # Le port exposé pour le service
+      targetPort: {{ .Values.service.port }}  # Le port interne du pod, aligné avec le port défini dans `values.yaml`
+      protocol: TCP
+  selector:
+    app: gateway
